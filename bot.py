@@ -175,7 +175,7 @@ def fetch_executors():
 
 def get_plat(extype):
     mapping = {
-        "wexecutor": "Windows", "wexternal": "Windows",
+        "wexecutor": "Windows", "wexternal": "Windows External",
         "mexecutor": "macOS", "aexecutor": "Android",
         "iexecutor": "iOS"
     }
@@ -185,6 +185,7 @@ def get_plat(extype):
 
 PLAT_COLORS = {
     "Windows": 0x00ff6a,
+    "Windows External": 0x00d85a,
     "macOS": 0x5865f2,
     "Android": 0xff9800,
     "iOS": 0xffffff,
@@ -192,6 +193,7 @@ PLAT_COLORS = {
 
 PLAT_EMOJI = {
     "Windows": "🖥️",
+    "Windows External": "🔌",
     "macOS": "🍎",
     "Android": "📱",
     "iOS": "📱",
