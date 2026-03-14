@@ -95,19 +95,23 @@ def load_versions():
             # format: Platform | Name | Version
             parts = line.split("|")
             if len(parts) == 3:
-                vers[parts[1].strip()] = parts[2].strip()
+                plat = parts[0].strip()
+                name = parts[1].strip()
+                ver = parts[2].strip()
+                plat_name = f"{plat} | {name}"
+                vers[plat_name] = ver
     return vers
 
 def save_versions(ver_data):
     """write all executor versions to version.txt, sorted by name
-    ver_data = {name: (platform, version)}"""
+    ver_data = {"Platform | Name": version}"""
     with open(VER_FILE, "w", encoding="utf-8") as f:
         f.write(f"# revision.lol executor versions\n")
         f.write(f"# last updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
         f.write(f"# format: Platform | Name | Version\n\n")
-        for name in sorted(ver_data.keys()):
-            plat, ver = ver_data[name]
-            f.write(f"{plat} | {name} | {ver}\n")
+        for plat_name in sorted(ver_data.keys()):
+            ver = ver_data[plat_name]
+            f.write(f"{plat_name} | {ver}\n")
 
 def validate_webhook(url):
     import requests
@@ -319,7 +323,7 @@ def check_updates(cfg):
 
     updates = []
     first_run = len(versions) == 0
-    all_vers = {}  # fresh copy from api: {name: (platform, version)}
+    all_vers = {}  # fresh copy from api: {"Platform | Name": version}
 
     for ex in executors:
         name = ex.get("title", "")
@@ -330,15 +334,17 @@ def check_updates(cfg):
 
         ver = ex.get("version", "")
         plat = get_plat(ex.get("extype", ""))
-        all_vers[name] = (plat, ver)
-        old_ver = versions.get(name)
+        plat_name = f"{plat} | {name}"
+        
+        all_vers[plat_name] = ver
+        old_ver = versions.get(plat_name)
 
         if old_ver is None:
             if first_run:
                 continue  # dont spam on first run
             updates.append(build_embed(ex))
         elif old_ver != ver:
-            print(f"  \033[93m↑\033[0m {name}: {old_ver} → {ver}")
+            print(f"  \033[93m↑\033[0m {plat} {name}: {old_ver} → {ver}")
             updates.append(build_embed(ex, old_ver))
 
     # always write full version.txt from api (source of truth)
