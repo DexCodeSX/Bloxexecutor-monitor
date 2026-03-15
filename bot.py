@@ -130,36 +130,32 @@ def validate_webhook(url):
 def setup():
     cfg = load_cfg()
 
-    while True:
-        existing = cfg.get("webhook_url", "")
-        if existing:
-            print(f"\n  current webhook: \033[90m{existing[:50]}...\033[0m")
-            choice = input("  keep it? (y/n): ").strip().lower()
-            if choice in ("y", "yes", ""):
-                break
+    # webhook url from config.json
+    wh = cfg.get("webhook_url", "")
+    if not wh:
+        print(f"  \033[91m✗\033[0m no webhook_url in config.json")
+        print(f"  \033[90m  add \"webhook_url\" to config.json and restart\033[0m")
+        sys.exit(1)
 
-        url = input("\n  \033[97mYOUR DISCORD WEBHOOK URL:\033[0m ").strip()
-        if not url:
-            print("  \033[91m✗ FAIL\033[0m — cannot be empty, try again")
-            continue
-        if not url.startswith("https://discord.com/api/webhooks/"):
-            print("  \033[91m✗ FAIL\033[0m — must start with https://discord.com/api/webhooks/")
-            continue
+    print(f"  validating webhook...", end=" ", flush=True)
+    ok, info = validate_webhook(wh)
+    if ok:
+        print(f"\033[92m✓\033[0m connected to \"{info}\"")
+    else:
+        print(f"\033[91m✗\033[0m webhook failed — {info}")
+        print(f"  \033[90m  check webhook_url in config.json\033[0m")
+        sys.exit(1)
 
-        print("  validating...", end=" ", flush=True)
-        ok, info = validate_webhook(url)
-        if ok:
-            print(f"\033[92m✓\033[0m connected to \"{info}\"")
-            cfg["webhook_url"] = url
-            save_cfg(cfg)
-            break
-        else:
-            print(f"\033[91m✗ FAIL\033[0m — {info}")
-            print("  try again!")
-
+    # defaults
     if "interval" not in cfg:
         cfg["interval"] = 300
-        save_cfg(cfg)
+    if "footer" not in cfg:
+        cfg["footer"] = "credit by bisam • revision.lol"
+    if "webhook_name" not in cfg:
+        cfg["webhook_name"] = "darkgg monitorr"
+    if "webhook_profile" not in cfg:
+        cfg["webhook_profile"] = True
+    save_cfg(cfg)
 
     return cfg
 
@@ -199,7 +195,7 @@ PLAT_EMOJI = {
     "iOS": "📱",
 }
 
-def build_embed(ex, old_ver=None):
+def build_embed(ex, old_ver=None, footer_text=None):
     plat = get_plat(ex.get("extype", ""))
     name = ex.get("title", "Unknown")
     ver = ex.get("version", "?")
@@ -270,7 +266,7 @@ def build_embed(ex, old_ver=None):
         "color": color,
         "fields": fields,
         "footer": {
-            "text": "credit by bisam • revision.lol"
+            "text": footer_text or "credit by bisam • revision.lol"
         },
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -281,15 +277,19 @@ def build_embed(ex, old_ver=None):
 
 # ──────────── send webhook ────────────
 
-def send_webhook(webhook_url, embeds):
+def send_webhook(webhook_url, embeds, cfg=None):
     import requests
+    cfg = cfg or {}
     chunks = [embeds[i:i+10] for i in range(0, len(embeds), 10)]
     for chunk in chunks:
-        payload = {
-            "username": "darkgg monitorr",
-            "avatar_url": "https://revision.lol/revisionlogo.png",
-            "embeds": chunk
-        }
+        payload = {"embeds": chunk}
+        # webhook name — empty string means let discord channel webhook name handle it
+        wh_name = cfg.get("webhook_name", "darkgg monitorr")
+        if wh_name:
+            payload["username"] = wh_name
+        # webhook profile pic — false means dont override, let channel webhook profile handle it
+        if cfg.get("webhook_profile", True):
+            payload["avatar_url"] = "https://revision.lol/revisionlogo.png"
         r = requests.post(webhook_url, json=payload, timeout=15)
         if r.status_code == 204:
             pass
@@ -344,23 +344,28 @@ def check_updates(cfg):
         if old_ver is None:
             if first_run:
                 continue  # dont spam on first run
-            updates.append(build_embed(ex))
+            updates.append(build_embed(ex, footer_text=cfg.get("footer")))
         elif old_ver != ver:
             print(f"  \033[93m↑\033[0m {plat} {name}: {old_ver} → {ver}")
-            updates.append(build_embed(ex, old_ver))
+            updates.append(build_embed(ex, old_ver, footer_text=cfg.get("footer")))
+
+    # check for removed executors
+    for plat_name in versions:
+        if plat_name not in all_vers and not first_run:
+            print(f"  \033[91m✗\033[0m {plat_name} removed from api")
 
     # always write full version.txt from api (source of truth)
     save_versions(all_vers)
 
     if updates:
         print(f"  \033[92m✓\033[0m sending {len(updates)} update(s) to discord...")
-        send_webhook(cfg["webhook_url"], updates)
+        send_webhook(cfg["webhook_url"], updates, cfg)
         print(f"  \033[92m✓\033[0m done!")
     elif first_run:
         print(f"  \033[92m✓\033[0m first run — saved {len(all_vers)} executor versions to version.txt")
-        print(f"  \033[90m  next run will detect changes\033[0m")
+        print(f"  \033[90m  next check will detect changes\033[0m")
     else:
-        print(f"  \033[90m—\033[0m no updates detected")
+        print(f"  \033[90m—\033[0m no updates")
 
     return cfg
 

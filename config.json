@@ -1,0 +1,7 @@
+{
+  "webhook_url": "https://discord.com/api/webhooks/",
+  "interval": 300,
+  "footer": "credit by bisam • revision.lol",
+  "webhook_name": "darkgg monitorr",
+  "webhook_profile": true
+}
